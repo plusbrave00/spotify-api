@@ -1,12 +1,40 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import yt_dlp
-import os
+import os, traceback
 
 app = Flask(__name__)
 CORS(app)
 
 COOKIES = os.environ.get('YT_COOKIES', '')
+
+def base_opts():
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web', 'ios', 'tv'],
+                'skip': ['dash', 'hls'],
+            }
+        },
+    }
+    if COOKIES and os.path.exists(COOKIES):
+        opts['cookiefile'] = COOKIES
+    return opts
+
+def extract_json(data):
+    if not data:
+        return None
+    return {
+        'id': data.get('id'),
+        'title': data.get('title'),
+        'artist': data.get('uploader') or data.get('channel') or 'Unknown',
+        'duration': data.get('duration'),
+        'thumbnail': data.get('thumbnail') or f"https://i.ytimg.com/vi/{data.get('id')}/hqdefault.jpg",
+        'url': f"https://youtube.com/watch?v={data.get('id')}",
+    }
 
 @app.route('/')
 def home():
@@ -27,29 +55,21 @@ def search():
     if not q:
         return jsonify({'error': 'Missing ?q'}), 400
 
-    opts = {
-        'quiet': True, 'no_warnings': True,
-        'extract_flat': 'in_playlist', 'skip_download': True,
-        'default_search': f'ytsearch{limit}',
-    }
-    if COOKIES and os.path.exists(COOKIES):
-        opts['cookiefile'] = COOKIES
+    opts = base_opts()
+    opts['extract_flat'] = 'in_playlist'
+    opts['default_search'] = f'ytsearch{limit}'
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        data = ydl.extract_info(q, download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            data = ydl.extract_info(q, download=False)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
     results = []
     for r in (data.get('entries') or [data]):
-        if not r:
-            continue
-        results.append({
-            'id': r.get('id'),
-            'title': r.get('title'),
-            'artist': r.get('uploader') or r.get('channel') or 'Unknown',
-            'duration': r.get('duration'),
-            'thumbnail': r.get('thumbnail') or f"https://i.ytimg.com/vi/{r.get('id')}/hqdefault.jpg",
-            'url': f"https://youtube.com/watch?v={r.get('id')}",
-        })
+        item = extract_json(r)
+        if item:
+            results.append(item)
     return jsonify({'status': 'ok', 'count': len(results), 'results': results})
 
 @app.route('/stream')
@@ -59,16 +79,14 @@ def stream():
     if not url:
         return jsonify({'error': 'Missing ?url'}), 400
 
-    opts = {
-        'quiet': True, 'no_warnings': True, 'skip_download': True,
-        'format': {'low': 'worstaudio', 'medium': 'bestaudio[abr<=64]', 'high': 'bestaudio'}.get(quality, 'bestaudio'),
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-    }
-    if COOKIES and os.path.exists(COOKIES):
-        opts['cookiefile'] = COOKIES
+    opts = base_opts()
+    opts['format'] = {'low': 'worstaudio', 'medium': 'bestaudio[abr<=64]', 'high': 'bestaudio'}.get(quality, 'bestaudio')
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception as e:
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
     return jsonify({
         'status': 'ok',
@@ -83,29 +101,21 @@ def stream():
 @app.route('/trending')
 def trending():
     country = request.args.get('country', 'IN')
-    opts = {
-        'quiet': True, 'no_warnings': True,
-        'extract_flat': 'in_playlist', 'skip_download': True,
-        'default_search': f'ytsearch20',
-    }
-    if COOKIES and os.path.exists(COOKIES):
-        opts['cookiefile'] = COOKIES
+    opts = base_opts()
+    opts['extract_flat'] = 'in_playlist'
+    opts['default_search'] = 'ytsearch20'
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        data = ydl.extract_info(f'{country} trending music 2026', download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            data = ydl.extract_info(f'{country} trending music 2026', download=False)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
     results = []
     for r in (data.get('entries') or []):
-        if not r:
-            continue
-        results.append({
-            'id': r.get('id'),
-            'title': r.get('title'),
-            'artist': r.get('uploader') or r.get('channel') or 'Unknown',
-            'duration': r.get('duration'),
-            'thumbnail': r.get('thumbnail') or f"https://i.ytimg.com/vi/{r.get('id')}/hqdefault.jpg",
-            'url': f"https://youtube.com/watch?v={r.get('id')}",
-        })
+        item = extract_json(r)
+        if item:
+            results.append(item)
     return jsonify({'status': 'ok', 'count': len(results), 'results': results})
 
 @app.route('/info')
@@ -114,15 +124,13 @@ def info():
     if not url:
         return jsonify({'error': 'Missing ?url'}), 400
 
-    opts = {
-        'quiet': True, 'no_warnings': True, 'skip_download': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-    }
-    if COOKIES and os.path.exists(COOKIES):
-        opts['cookiefile'] = COOKIES
+    opts = base_opts()
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception as e:
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
     formats = []
     for f in info.get('formats', []):
