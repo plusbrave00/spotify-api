@@ -7,6 +7,7 @@ app = Flask(__name__)
 CORS(app)
 
 COOKIES = os.environ.get('YT_COOKIES', '')
+PROXY = os.environ.get('YT_PROXY', '')
 
 def base_opts():
     opts = {
@@ -22,6 +23,8 @@ def base_opts():
     }
     if COOKIES and os.path.exists(COOKIES):
         opts['cookiefile'] = COOKIES
+    if PROXY:
+        opts['proxy'] = PROXY
     return opts
 
 def extract_json(data):
@@ -88,6 +91,9 @@ def stream():
     except Exception as e:
         return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
+    if not info:
+        return jsonify({'error': 'No data extracted'}), 500
+
     return jsonify({
         'status': 'ok',
         'title': info.get('title'),
@@ -131,6 +137,9 @@ def info():
             info = ydl.extract_info(url, download=False)
     except Exception as e:
         return jsonify({'error': str(e), 'type': type(e).__name__}), 500
+
+    if not info:
+        return jsonify({'error': 'No data extracted'}), 500
 
     formats = []
     for f in info.get('formats', []):
