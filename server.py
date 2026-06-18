@@ -88,20 +88,23 @@ def stream():
 
     opts = base_opts()
     opts = base_opts()
-    opts['socket_timeout'] = 15
+    opts['socket_timeout'] = 30
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-    except Exception as e:
+    fail_count = 0
+    info = None
+    for fmt in [None, 'worst', 'worstaudio', '0']:
+        if fmt:
+            opts['format'] = fmt
+        elif 'format' in opts:
+            del opts['format']
         try:
-            opts2 = base_opts()
-            opts2['format'] = 'worst'
-            opts2['socket_timeout'] = 15
-            with yt_dlp.YoutubeDL(opts2) as ydl:
+            with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-        except Exception as e2:
-            return jsonify({'error': str(e2), 'type': type(e2).__name__}), 500
+            break
+        except Exception as e:
+            fail_count += 1
+            if fail_count >= 4:
+                return jsonify({'error': str(e), 'type': type(e).__name__, 'hint': 'Try YT_PROXY or refresh cookies'}), 500
 
     if not info:
         return jsonify({'error': 'No data extracted'}), 500
@@ -153,16 +156,23 @@ def info():
 
     opts = base_opts()
     opts = base_opts()
-    opts['socket_timeout'] = 15
+    opts['socket_timeout'] = 30
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-    except Exception as e:
-        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
+    info = None
+    for fmt in [None, 'worst', 'worstaudio', '0']:
+        if fmt:
+            opts['format'] = fmt
+        elif 'format' in opts:
+            del opts['format']
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+            break
+        except:
+            pass
 
     if not info:
-        return jsonify({'error': 'No data extracted'}), 500
+        return jsonify({'error': 'Could not extract video info', 'hint': 'Try YT_PROXY or refresh cookies'}), 500
 
     formats = []
     for f in info.get('formats') or []:
