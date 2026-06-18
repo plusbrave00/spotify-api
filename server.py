@@ -93,12 +93,9 @@ def stream():
     if not url:
         return jsonify({'error': 'Missing ?url'}), 400
 
-    quality_map = {'low': 'worstaudio', 'medium': 'bestaudio[abr<=64]', 'high': 'bestaudio'}
-    fmt = quality_map.get(quality, 'bestaudio')
-
     opts = base_opts()
-    opts['format'] = fmt
     opts['socket_timeout'] = 15
+    del opts['skip_download']
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -106,8 +103,16 @@ def stream():
     except Exception as e:
         return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
-    if not info:
-        return jsonify({'error': 'No data extracted'}), 500
+    if not info or not info.get('formats'):
+        return jsonify({'error': 'No formats found'}), 500
+
+    audio_formats = [f for f in info['formats'] if f.get('acodec') and f.get('acodec') != 'none']
+    if not audio_formats:
+        audio_formats = info['formats']
+
+    quality_map = {'low': 32, 'medium': 64, 'high': 999}
+    target_abr = quality_map.get(quality, 999)
+    best = min(audio_formats, key=lambda f: abs((f.get('abr') or 0) - target_abr) if target_abr < 999 else -(f.get('abr') or 0))
 
     return jsonify({
         'status': 'ok',
@@ -115,8 +120,10 @@ def stream():
         'artist': info.get('uploader') or info.get('channel') or 'Unknown',
         'duration': info.get('duration'),
         'thumbnail': info.get('thumbnail'),
-        'audio_url': info.get('url'),
+        'audio_url': best.get('url'),
         'quality': quality,
+        'format_id': best.get('format_id'),
+        'bitrate': best.get('abr'),
     })
 
 @app.route('/trending')
