@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import yt_dlp
-import os, traceback
+import os, traceback, base64
 
 app = Flask(__name__)
 CORS(app)
@@ -9,11 +9,16 @@ CORS(app)
 COOKIES = os.environ.get('YT_COOKIES', '')
 PROXY = os.environ.get('YT_PROXY', '')
 COOKIES_CONTENT = os.environ.get('YT_COOKIES_CONTENT', '')
+COOKIES_B64 = os.environ.get('YT_COOKIES_B64', '')
 
 if COOKIES_CONTENT and not os.path.exists(COOKIES):
     COOKIES = '/app/cookies.txt'
     with open(COOKIES, 'w') as f:
         f.write(COOKIES_CONTENT.replace('\\n', '\n'))
+elif COOKIES_B64 and not os.path.exists(COOKIES):
+    COOKIES = '/app/cookies.txt'
+    with open(COOKIES, 'wb') as f:
+        f.write(base64.b64decode(COOKIES_B64))
 
 def base_opts():
     opts = {
