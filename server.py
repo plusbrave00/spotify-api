@@ -93,7 +93,7 @@ def stream():
         return jsonify({'error': 'Missing ?url'}), 400
 
     opts = base_opts()
-    opts['format'] = 'bestaudio/best'
+    opts['format'] = 'bestaudio*/best'
     opts['socket_timeout'] = 15
 
     try:
@@ -152,7 +152,7 @@ def info():
         return jsonify({'error': 'Missing ?url'}), 400
 
     opts = base_opts()
-    opts['format'] = 'bestaudio/best'
+    opts['format'] = 'bestaudio*/best'
     opts['socket_timeout'] = 15
 
     try:
