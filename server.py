@@ -8,6 +8,12 @@ CORS(app)
 
 COOKIES = os.environ.get('YT_COOKIES', '')
 PROXY = os.environ.get('YT_PROXY', '')
+COOKIES_CONTENT = os.environ.get('YT_COOKIES_CONTENT', '')
+
+if COOKIES_CONTENT and not os.path.exists(COOKIES):
+    COOKIES = '/app/cookies.txt'
+    with open(COOKIES, 'w') as f:
+        f.write(COOKIES_CONTENT.replace('\\n', '\n'))
 
 def base_opts():
     opts = {
@@ -89,15 +95,10 @@ def stream():
     opts['format'] = fmt
     opts['socket_timeout'] = 15
 
-    print(f"[stream] url={url} quality={quality} fmt={fmt}", flush=True)
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
-            print("[stream] extracting...", flush=True)
             info = ydl.extract_info(url, download=False)
-            print(f"[stream] extracted: {info is not None}", flush=True)
     except Exception as e:
-        print(f"[stream] EXCEPTION: {type(e).__name__}: {e}", flush=True)
-        traceback.print_exc()
         return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
     if not info:
@@ -142,15 +143,10 @@ def info():
     opts = base_opts()
     opts['socket_timeout'] = 15
 
-    print(f"[info] url={url}", flush=True)
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
-            print("[info] extracting...", flush=True)
             info = ydl.extract_info(url, download=False)
-            print(f"[info] extracted: {info is not None}", flush=True)
     except Exception as e:
-        print(f"[info] EXCEPTION: {type(e).__name__}: {e}", flush=True)
-        traceback.print_exc()
         return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
     if not info:
@@ -181,10 +177,6 @@ def handle_all_errors(e):
         return jsonify({'error': 'Not found'}), 404
     traceback.print_exc()
     return jsonify({'error': str(e), 'type': type(e).__name__}), 500
-
-@app.route('/test_error')
-def test_error():
-    raise RuntimeError("test error from /test_error")
 
 @app.route('/health')
 def health():
