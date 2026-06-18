@@ -24,7 +24,6 @@ def base_opts():
     opts = {
         'quiet': True,
         'no_warnings': True,
-        'skip_download': True,
         'extractor_args': {
             'youtube': {
                 'player_client': ['android', 'web', 'ios', 'tv'],
@@ -93,7 +92,7 @@ def stream():
         return jsonify({'error': 'Missing ?url'}), 400
 
     opts = base_opts()
-    opts['format'] = 'bestaudio*/best'
+    opts = base_opts()
     opts['socket_timeout'] = 15
 
     try:
@@ -105,15 +104,14 @@ def stream():
     if not info:
         return jsonify({'error': 'No data extracted'}), 500
 
-    audio_url = info.get('url')
-    if not audio_url and info.get('formats'):
-        audio_formats = [f for f in info['formats'] if f.get('acodec') and f.get('acodec') != 'none']
-        if not audio_formats:
-            audio_formats = info['formats']
-        quality_map = {'low': 32, 'medium': 64, 'high': 999}
-        target_abr = quality_map.get(quality, 999)
-        best = min(audio_formats, key=lambda f: abs((f.get('abr') or 0) - target_abr) if target_abr < 999 else -(f.get('abr') or 0))
-        audio_url = best.get('url')
+    formats = info.get('formats') or []
+    audio_formats = [f for f in formats if f.get('acodec') and f.get('acodec') != 'none']
+    if not audio_formats:
+        audio_formats = formats
+
+    quality_map = {'low': 32, 'medium': 64, 'high': 999}
+    target_abr = quality_map.get(quality, 999)
+    best = min(audio_formats, key=lambda f: abs((f.get('abr') or 0) - target_abr) if target_abr < 999 else -(f.get('abr') or 0)) if audio_formats else {}
 
     return jsonify({
         'status': 'ok',
@@ -121,7 +119,7 @@ def stream():
         'artist': info.get('uploader') or info.get('channel') or 'Unknown',
         'duration': info.get('duration'),
         'thumbnail': info.get('thumbnail'),
-        'audio_url': audio_url,
+        'audio_url': best.get('url') or info.get('url'),
         'quality': quality,
     })
 
@@ -152,7 +150,7 @@ def info():
         return jsonify({'error': 'Missing ?url'}), 400
 
     opts = base_opts()
-    opts['format'] = 'bestaudio*/best'
+    opts = base_opts()
     opts['socket_timeout'] = 15
 
     try:
@@ -165,13 +163,14 @@ def info():
         return jsonify({'error': 'No data extracted'}), 500
 
     formats = []
-    for f in info.get('formats', []):
+    for f in info.get('formats') or []:
         if f.get('acodec') and f['acodec'] != 'none':
             formats.append({
                 'id': f.get('format_id'),
                 'ext': f.get('ext'),
                 'bitrate': f.get('abr'),
                 'size': f.get('filesize'),
+                'url': f.get('url'),
             })
 
     return jsonify({
