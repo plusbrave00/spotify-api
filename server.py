@@ -24,11 +24,6 @@ def base_opts():
     opts = {
         'quiet': True,
         'no_warnings': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web', 'ios', 'tv'],
-            }
-        },
     }
     if COOKIES and os.path.exists(COOKIES):
         opts['cookiefile'] = COOKIES
@@ -99,7 +94,14 @@ def stream():
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except Exception as e:
-        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
+        try:
+            opts2 = base_opts()
+            opts2['format'] = 'worst'
+            opts2['socket_timeout'] = 15
+            with yt_dlp.YoutubeDL(opts2) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except Exception as e2:
+            return jsonify({'error': str(e2), 'type': type(e2).__name__}), 500
 
     if not info:
         return jsonify({'error': 'No data extracted'}), 500
@@ -191,7 +193,7 @@ def handle_all_errors(e):
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok', 'service': 'spotify-clone-api'})
+    return jsonify({'status': 'ok', 'service': 'spotify-clone-api', 'ytdlp_version': yt_dlp.version.__version__, 'cookies': os.path.exists(COOKIES) if COOKIES else False})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
