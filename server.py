@@ -160,6 +160,12 @@ def info():
         'formats': formats,
     })
 
+@app.errorhandler(Exception)
+def handle_all_errors(e):
+    if hasattr(e, 'code') and e.code == 404:
+        return jsonify({'error': 'Not found'}), 404
+    return jsonify({'error': str(e), 'type': type(e).__name__}), 500
+
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok', 'service': 'spotify-clone-api'})
